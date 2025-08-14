@@ -44,16 +44,12 @@ def dragon_to_coords(seq, step=1.0):
         # ignore X and Y
     return torch.tensor(x), torch.tensor(y)
 
-# -----------------------------
-# 3) Generate Dragon Curve
-# -----------------------------
-iterations = 12  # 可以调整迭代次数
+
+iterations = 15  # iter number -> control the complexity of the plot  
 seq = generate_dragon(iterations)
 x, y = dragon_to_coords(seq, step=1.0)
 
-# -----------------------------
-# 4) Plot using matplotlib
-# -----------------------------
+
 plt.figure(figsize=(10,10))
 plt.plot(x.numpy(), y.numpy(), color='blue', linewidth=1)
 plt.axis('equal')
