@@ -1,64 +1,93 @@
-import torch
-import matplotlib.pyplot as plt
-import matplotlib.colors as mcolors
-import numpy as np
+# reference: https://en.wikipedia.org/wiki/Lorenz_system
+# Lorenz attractor core equations:
+# dx/dt = sigma * (y - x)
+# dy/dt = x * (rho - z) - y
+# dz/dt = x * y - beta * z
 
-# 选择设备
+import torch
+import numpy as np
+import plotly.graph_objects as go
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# 设置绘图参数
-fig, ax = plt.subplots(figsize=(10, 10))
-ax.set_aspect('equal')
-ax.axis('off')
+# parameters
+sigma = 10.0
+beta = 8/3
+dt = 0.01
+num_steps = 10000
+x0, y0, z0 = 1.0, 1.0, 1.0  # initial state
 
-# 颜色渐变函数：绿色到紫色
-def color_gradient(level, max_level):
-    return (level / max_level, 0, 1 - level / max_level)
+rho_vals = np.linspace(20, 40, 10)  # changable rho
 
-# 递归绘制毕达哥拉斯树
-def draw_tree(x, y, size, angle, level, max_level):
-    if level > max_level or size < 0.01:
-        return
-    
-    # 计算四个顶点坐标
-    # 左下角 (x, y)
-    # 左上角 (x1, y1)
-    dx = size * torch.cos(angle)
-    dy = size * torch.sin(angle)
-    x1 = x + dx
-    y1 = y + dy
-    
-    # 正方形的另外两个顶点
-    perp_angle = angle + torch.tensor(np.pi/2)
-    dx2 = size * torch.cos(perp_angle)
-    dy2 = size * torch.sin(perp_angle)
-    x2 = x1 + dx2
-    y2 = y1 + dy2
-    x3 = x + dx2
-    y3 = y + dy2
-    
-    # 绘制方块
-    xs = [x.item(), x1.item(), x2.item(), x3.item()]
-    ys = [y.item(), y1.item(), y2.item(), y3.item()]
-    ax.fill(xs, ys, color=color_gradient(level, max_level), edgecolor='black')
-    
-    # 递归绘制左子树
-    new_size = size * 0.7
-    new_angle_left = angle + torch.tensor(np.pi/4)
-    draw_tree(x3, y3, new_size, new_angle_left, level+1, max_level)
-    
-    # 递归绘制右子树
-    new_angle_right = angle - torch.tensor(np.pi/4)
-    draw_tree(x2, y2, new_size, new_angle_right, level+1, max_level)
+trajectories = []
 
-# 初始化树参数
-max_level = 8
-size = torch.tensor(1.0, device=device)
-x0 = torch.tensor(0.0, device=device)
-y0 = torch.tensor(0.0, device=device)
-angle0 = torch.tensor(np.pi/2, device=device)
+for rho in rho_vals:
+    # initialize x, y, z
+    x_vals = torch.zeros(num_steps, device=device)
+    y_vals = torch.zeros(num_steps, device=device)
+    z_vals = torch.zeros(num_steps, device=device)
+    
+    x_vals[0], y_vals[0], z_vals[0] = x0, y0, z0
 
-# 绘制树
-draw_tree(x0, y0, size, angle0, level=0, max_level=max_level)
+    # core loop
+    for i in range(1, num_steps):
+        
+        dx = sigma*(y_vals[i-1] - x_vals[i-1])
+        dy = x_vals[i-1]*(rho - z_vals[i-1]) - y_vals[i-1]
+        dz = x_vals[i-1]*y_vals[i-1] - beta*z_vals[i-1]
+        
+        # Euler intergration
+        x_vals[i] = x_vals[i-1] + dx*dt
+        y_vals[i] = y_vals[i-1] + dy*dt
+        z_vals[i] = z_vals[i-1] + dz*dt
 
-plt.show()
+    # save to GPU
+    trajectories.append((
+        x_vals.cpu().numpy(),
+        y_vals.cpu().numpy(),
+        z_vals.cpu().numpy()
+    ))
+
+# draw the initial trace
+colors = np.linspace(0,1,num_steps)
+fig = go.Figure()
+x_vals, y_vals, z_vals = trajectories[0]
+fig.add_trace(go.Scatter3d(
+    x=x_vals, 
+    y=y_vals, 
+    z=z_vals,
+    mode='lines',
+    line=dict(color=colors, colorscale='Viridis', width=3)
+))
+
+# add slider
+steps = []
+for i, rho in enumerate(rho_vals):
+    step = dict(
+        method='update',
+        args=[{"visible":[j==i for j in range(len(rho_vals))]},
+              {"title":f"Lorenz Attractor σ={sigma}, ρ={rho:.1f}"}],
+        label=f"ρ={rho:.1f}"
+    )
+    steps.append(step)
+sliders = [dict(active=0, pad={"t":50}, steps=steps)]
+
+# add other traces
+for i in range(1, len(rho_vals)):
+    x_vals, y_vals, z_vals = trajectories[i]
+    fig.add_trace(go.Scatter3d(
+        x=x_vals, 
+        y=y_vals, 
+        z=z_vals,
+        mode='lines',
+        line=dict(color=colors, colorscale='Viridis', width=3),
+        visible=False
+    ))
+
+# update the plot
+fig.update_layout(
+    sliders=sliders,
+    scene=dict(xaxis_title='X', yaxis_title='Y', zaxis_title='Z')
+)
+
+fig.show()
