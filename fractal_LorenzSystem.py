@@ -14,10 +14,10 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 sigma = 10.0
 beta = 8/3
 dt = 0.01
-num_steps = 10000
+num_steps = 50000
 x0, y0, z0 = 1.0, 1.0, 1.0  # initial state
 
-rho_vals = np.linspace(20, 40, 10)  # changable rho
+rho_vals = np.linspace(20, 40, 9)  # changable rho
 
 trajectories = []
 
