@@ -1,25 +1,31 @@
+# reference: https://en.wikipedia.org/wiki/Lorenz_system
+# Lorenz attractor core equations:
+# dx/dt = sigma * (y - x)
+# dy/dt = x * (rho - z) - y
+# dz/dt = x * y - beta * z
+
 import torch
 import numpy as np
-import plotly.graph_objects as go
+import plotly.graph_objects as go # using ploty to draw 3d images on website
 
-# GPU/CPU 选择
+
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-# 参数
+# parameter
 sigma = 10.0
 beta = 8/3
 dt = 0.01
 num_steps = 50000
 x0, y0, z0 = 1.0, 1.0, 1.0
 
-rho_vals = torch.linspace(20, 40, 9, device=device)  # 9 条轨迹
+rho_vals = torch.linspace(20, 40, 9, device=device)  # 9 different tracks (9 rhos)
 num_rho = len(rho_vals)
 
-# 初始化张量: shape = (num_rho, num_steps, 3)
+# initialize the tensor: shape = (num_rho, num_steps, 3)
 traj = torch.zeros((num_rho, num_steps, 3), device=device)
 traj[:, 0, :] = torch.tensor([x0, y0, z0], device=device)
 
-# 核心循环（仍然按时间步迭代，但同时处理所有 rho）
+# core iteration using Euler method, computing all rhos at one time (Using GPU)
 for i in range(1, num_steps):
     x, y, z = traj[:, i-1, 0], traj[:, i-1, 1], traj[:, i-1, 2]
     dx = sigma * (y - x)
@@ -29,10 +35,10 @@ for i in range(1, num_steps):
     traj[:, i, 1] = y + dy * dt
     traj[:, i, 2] = z + dz * dt
 
-# 转到 CPU 用于绘图
-traj_np = traj.cpu().numpy()
 
-# 绘图
+traj_np = traj.cpu().numpy() # copy the number to cpu
+
+# draw the graph
 colors = np.linspace(0, 1, num_steps)
 fig = go.Figure()
 
